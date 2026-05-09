@@ -1,0 +1,107 @@
+{% extends "base.html" %} {% block title %}Výsledky{% endblock %} {% block
+content %}
+<div class="results-section">
+  <h1>{{ race_name }}</h1>
+  <h2>Výsledky závodu</h2>
+  {% if race_date %}
+  <p class="race-date">Datum konání: {{ race_date }}</p>
+  {% endif %} {% if saved_files %}
+  <div class="success-message">
+    ✅ Výsledky byly automaticky uloženy:
+    <ul>
+      <li><strong>CSV:</strong> {{ saved_files.csv_filename }}</li>
+      <li><strong>PDF:</strong> {{ saved_files.pdf_filename }}</li>
+    </ul>
+    <div class="download-buttons">
+      <a href="/download/{{ saved_files.csv_filename }}" class="btn btn-primary"
+        >📥 Stáhnout CSV</a
+      >
+      <a href="/download/{{ saved_files.pdf_filename }}" class="btn btn-primary"
+        >📥 Stáhnout PDF</a
+      >
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="summary-grid">
+    <div class="summary-card">
+      <strong>Typ závodu</strong>
+      <div>{{ race_type }}</div>
+    </div>
+    <div class="summary-card">
+      <strong>Režim startu</strong>
+      <div>{{ start_mode }}</div>
+    </div>
+    <div class="summary-card">
+      <strong>Registrováno</strong>
+      <div>{{ registered_count }}</div>
+    </div>
+    <div class="summary-card">
+      <strong>Dokončeno</strong>
+      <div>{{ finished_count }}</div>
+    </div>
+    <div class="summary-card">
+      <strong>DNS / DNF / DSQ</strong>
+      <div>{{ invalid_count }}</div>
+    </div>
+  </div>
+
+  <table class="results-table">
+    <thead>
+      <tr>
+        <th>Pořadí</th>
+        <th>Kat.</th>
+        <th>Skup.</th>
+        <th>Číslo</th>
+        <th>Jméno</th>
+        <th>Pohlaví</th>
+        <th>Ročník</th>
+        <th>Věk</th>
+        <th>Kategorie</th>
+        <th>Skupina</th>
+        <th>Klub</th>
+        <th>Stav</th>
+        <th>Čas</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for result in results %}
+      <tr
+        class="{% if result.position == 1 %}first-place{% elif result.position == 2 %}second-place{% elif result.position == 3 %}third-place{% endif %}"
+      >
+        <td class="position">{{ result.position }}</td>
+        <td>{{ result.category_position or '-' }}</td>
+        <td>{{ result.group_position or '-' }}</td>
+        <td class="number">{{ result.number }}</td>
+        <td>{{ result.name }}</td>
+        <td>{{ result.gender }}</td>
+        <td>{{ result.year }}</td>
+        <td>{{ result.age or '-' }}</td>
+        <td>{{ result.category or '-' }}</td>
+        <td>{{ result.award_group or '-' }}</td>
+        <td>{{ result.team or '-' }}</td>
+        <td>{{ result.status }}</td>
+        <td class="time"><strong>{{ result.result_time or '-' }}</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  
+  <div class="button-group">
+    <button onclick="newRace()" class="btn btn-success">Nový Závod</button>
+  </div>
+</div>
+
+<script>
+  async function newRace() {
+    try {
+      await fetch("/api/reset-race", {
+        method: "POST",
+      });
+      window.location.href = "/";
+    } catch (error) {
+      alert("Chyba: " + error);
+    }
+  }
+</script>
+{% endblock %}

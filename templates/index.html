@@ -1,0 +1,100 @@
+{% extends "base.html" %} {% block title %}Nový Závod{% endblock %} {% block
+content %}
+<div class="welcome-section">
+  <h1>🏃 RaceTimer</h1>
+  <h2>Běžecký timer pro závody</h2>
+
+  {% if draft_available %}
+  <div class="success-message draft-message">
+    <strong>Byl nalezen rozpracovaný závod „{{ draft_name }}“.</strong>
+    <div class="download-buttons">
+      <a href="/setup" class="btn btn-primary">Pokračovat v závodu</a>
+      <button type="button" id="resetDraftBtn" class="btn btn-secondary">
+        Začít nový závod
+      </button>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="form-container">
+    <form id="raceForm">
+      <div class="form-group">
+        <label for="raceName">Název závodu:</label>
+        <input
+          type="text"
+          id="raceName"
+          name="raceName"
+          placeholder="Např. Běh kolem města"
+          required
+        />
+      </div>
+      <div class="form-group">
+        <label for="raceType">Typ závodu:</label>
+        <select id="raceType" name="raceType">
+          <option value="individual">Závod jednotlivců</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="startMode">Režim startu:</label>
+        <select id="startMode" name="startMode">
+          <option value="mass">Hromadný start</option>
+          <option value="interval">Intervalový start</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="startInterval">Interval mezi starty (s):</label>
+        <input
+          type="number"
+          id="startInterval"
+          name="startInterval"
+          value="30"
+          min="1"
+        />
+      </div>
+      <button type="submit" class="btn btn-primary btn-large">
+        Pokračovat
+      </button>
+    </form>
+  </div>
+</div>
+
+<script>
+  document.getElementById("raceForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const raceName = document.getElementById("raceName").value;
+
+    try {
+      const response = await fetch("/api/start-race", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          race_name: raceName,
+          race_type: document.getElementById("raceType").value,
+          start_mode: document.getElementById("startMode").value,
+          start_interval_seconds:
+            document.getElementById("startInterval").value,
+        }),
+      });
+
+      if (response.ok) {
+        window.location.href = "/setup";
+      } else {
+        const payload = await response.json().catch(() => ({}));
+        alert(payload.message || "Závod s tímto názvem již existuje.");
+      }
+    } catch (error) {
+      alert("Chyba: " + error);
+    }
+  });
+
+  const resetDraftBtn = document.getElementById("resetDraftBtn");
+  if (resetDraftBtn) {
+    resetDraftBtn.addEventListener("click", async () => {
+      await fetch("/api/reset-race", { method: "POST" });
+      window.location.reload();
+    });
+  }
+</script>
+{% endblock %}

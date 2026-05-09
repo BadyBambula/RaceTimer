@@ -1,0 +1,135 @@
+{% extends "base.html" %} {% block title %}Běhový Timer{% endblock %} {% block
+content %}
+<div class="timer-section">
+  <div class="timer-header">
+    <h1>{{ race_name }}</h1>
+    <p class="race-meta">
+      Datum závodu: {{ race_date }} | Režim startu: {{ start_mode }}
+    </p>
+    <div class="timer-display">
+      <span id="timerMinutes">00</span>:<span id="timerSeconds">00</span>.<span
+        id="timerCentiseconds"
+        >00</span
+      >
+    </div>
+  </div>
+
+  <div class="form-group search-group">
+    <label for="runnerSearch">Rychlé vyhledání závodníka:</label>
+    <input
+      type="text"
+      id="runnerSearch"
+      placeholder="Číslo, jméno nebo příjmení"
+    />
+  </div>
+
+  <div class="runners-grid" id="runnersGrid">
+    <!-- Běžci se vykreslí JavaScriptem -->
+  </div>
+
+  <div class="button-group">
+    <button onclick="endRace()" class="btn btn-warning btn-large">
+      Skončit Závod
+    </button>
+  </div>
+</div>
+
+<script>
+  let startTime = null;
+  let runnersData = {{ runners | tojson }};
+  let finishedRunners = new Set();
+
+  function formatTime(seconds) {
+      const minutes = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      const centiseconds = Math.floor((seconds % 1) * 100);
+      return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(centiseconds).padStart(2, '0')}`;
+  }
+
+  function updateTimer() {
+      if (!startTime) return;
+
+      const elapsed = (Date.now() - startTime) / 1000;
+      const minutes = Math.floor(elapsed / 60);
+      const seconds = Math.floor(elapsed % 60);
+      const centiseconds = Math.floor((elapsed % 1) * 100);
+
+      document.getElementById('timerMinutes').textContent = String(minutes).padStart(2, '0');
+      document.getElementById('timerSeconds').textContent = String(seconds).padStart(2, '0');
+      document.getElementById('timerCentiseconds').textContent = String(centiseconds).padStart(2, '0');
+  }
+
+  function renderRunners() {
+      const grid = document.getElementById('runnersGrid');
+      const searchValue = document.getElementById('runnerSearch').value.toLowerCase();
+
+      grid.innerHTML = Object.entries(runnersData)
+        .filter(([, runner]) => {
+          const searchable = `${runner.number} ${runner.name} ${runner.surname}`.toLowerCase();
+            const activeState = !['DNS', 'DNF', 'DSQ'].includes(runner.status);
+            return activeState && searchable.includes(searchValue);
+        })
+          .map(([id, runner]) => `
+              <div class="runner-button ${finishedRunners.has(parseInt(id)) ? 'finished' : ''}">
+                  <button
+                      onclick="finishRunner(${id})"
+                      class="btn-runner"
+                  >
+                      <strong>#${runner.number} ${runner.name} ${runner.surname}</strong>
+                      <br>
+                      <small>${runner.gender} | ${runner.year}${runner.club ? ' | ' + runner.club : ''}</small>
+                      <div class="time-display" id="time-${id}"></div>
+                  </button>
+              </div>
+          `)
+          .join('');
+  }
+
+  async function finishRunner(runnerId) {
+      const elapsed = (Date.now() - startTime) / 1000;
+
+      if (finishedRunners.has(runnerId)) {
+          // Odznačit - zrušit doběh
+          finishedRunners.delete(runnerId);
+          document.getElementById(`time-${runnerId}`).textContent = '';
+          try {
+              await fetch(`/api/unfinish-runner/${runnerId}`, { method: 'POST' });
+          } catch (error) {
+              console.error('Chyba:', error);
+          }
+      } else {
+          // Nový doběh - označit běžce
+          finishedRunners.add(runnerId);
+          document.getElementById(`time-${runnerId}`).textContent = formatTime(elapsed);
+          try {
+              const response = await fetch(`/api/finish-runner/${runnerId}/${elapsed}`, { method: 'POST' });
+              const payload = await response.json();
+              if (payload.success && runnersData[runnerId]) {
+                  const runner = runnersData[runnerId];
+                  auditLog.push({
+                      timestamp: new Date().toLocaleTimeString('cs-CZ'),
+                      message: `Doběh: #${runner.number} ${runner.name} ${runner.surname} - ${formatTime(elapsed)}`
+                  });
+                  renderLog();
+              }
+          } catch (error) {
+              console.error('Chyba:', error);
+          }
+      }
+
+      renderRunners();
+  }
+
+  function endRace() {
+      if (confirm('Ukončit závod a jít na výsledky?')) {
+          window.location.href = '/results';
+      }
+  }
+
+  // Start timer
+  startTime = Date.now();
+  renderRunners();
+  setInterval(updateTimer, 10);
+  document.getElementById('runnerSearch').addEventListener('input', renderRunners);
+</script>
+{% endblock %}

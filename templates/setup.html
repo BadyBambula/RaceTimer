@@ -1,0 +1,336 @@
+{% extends "base.html" %} {% block title %}Přidání Závodníků{% endblock %} {%
+block content %}
+<div class="setup-section">
+  <h1>{{ race_name }}</h1>
+  <h2>Přidejte závodníky</h2>
+  <p class="race-meta">
+    Datum závodu: {{ race_date }} | Typ: {{ race_type }} | Start: {{ start_mode
+    }}
+  </p>
+
+  <div class="two-column">
+    <div class="form-container">
+      <form id="runnerForm">
+        <div class="form-group">
+          <label for="number">Číslo:</label>
+          <input
+            type="text"
+            id="number"
+            name="number"
+            placeholder="Např. 1, A12"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="firstName">Jméno:</label>
+          <input type="text" id="firstName" name="firstName" required />
+        </div>
+
+        <div class="form-group">
+          <label for="lastName">Příjmení:</label>
+          <input type="text" id="lastName" name="lastName" required />
+        </div>
+
+        <div class="form-group">
+          <label for="gender">Pohlaví:</label>
+          <select id="gender" name="gender" required>
+            <option value="">-- Vyberte --</option>
+            <option value="Muž">Muž</option>
+            <option value="Žena">Žena</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="year">Ročník:</label>
+          <input
+            type="number"
+            id="year"
+            name="year"
+            placeholder="2010"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="club">Klub (nepovinné):</label>
+          <input
+            type="text"
+            id="club"
+            name="club"
+            placeholder="Např. AC Sparta"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="email">E-mail (nepovinné):</label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            placeholder="jana@example.com"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="phone">Telefon (nepovinné):</label>
+          <input
+            type="text"
+            id="phone"
+            name="phone"
+            placeholder="+420 777 123 456"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="manualCategory">Kategorie (ručně):</label>
+          <input
+            type="text"
+            id="manualCategory"
+            name="manualCategory"
+            placeholder="Např. Muži A"
+          />
+        </div>
+
+        <button type="submit" class="btn btn-primary">Přidat závodníka</button>
+      </form>
+    </div>
+
+    <div class="runners-list">
+      <h3>Přidaní Závodníci</h3>
+      <div id="runnersList" class="list">
+        <p class="empty-message">Zatím žádní závodníci</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-container import-container">
+    <h3>Import z CSV</h3>
+    <p>
+      Vložte CSV z Google Sheets / Google Forms. Import se nejprve zobrazí v
+      náhledu.
+    </p>
+    <textarea
+      id="csvInput"
+      rows="8"
+      placeholder="startovni_cislo,jmeno,prijmeni,pohlavi,rocnik,..."
+    ></textarea>
+    <div class="button-group">
+      <button type="button" id="previewImportBtn" class="btn btn-secondary">
+        Náhled importu
+      </button>
+      <button
+        type="button"
+        id="confirmImportBtn"
+        class="btn btn-primary"
+        disabled
+      >
+        Potvrdit import
+      </button>
+    </div>
+    <div id="importErrors" class="import-errors"></div>
+    <div id="importPreview" class="import-preview"></div>
+  </div>
+
+  {% if start_mode == 'interval' and start_plan %}
+  <div class="form-container">
+    <h3>Startovní plán</h3>
+    <table class="results-table compact-table">
+      <thead>
+        <tr>
+          <th>Pořadí</th>
+          <th>Číslo</th>
+          <th>Jméno</th>
+          <th>Kategorie</th>
+          <th>Start</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in start_plan %}
+        <tr>
+          <td>{{ item.position }}</td>
+          <td>{{ item.number }}</td>
+          <td>{{ item.name }}</td>
+          <td>{{ item.category }}</td>
+          <td>{{ item.start_time }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <div class="button-group">
+    <button onclick="window.location.href = '/'" class="btn btn-secondary">
+      Zpět
+    </button>
+    <button id="startRaceBtn" class="btn btn-success btn-large" disabled>
+      Spustit Závod
+    </button>
+  </div>
+</div>
+
+<script>
+  let runners = {};
+  let importedRows = [];
+
+  async function loadRunners() {
+    try {
+      const response = await fetch("/api/get-runners");
+      const data = await response.json();
+      runners = data.runners;
+      updateRunnersList();
+    } catch (error) {
+      console.error("Chyba:", error);
+    }
+  }
+
+  function updateRunnersList() {
+    const list = document.getElementById("runnersList");
+
+    if (Object.keys(runners).length === 0) {
+      list.innerHTML = '<p class="empty-message">Zatím žádní závodníci</p>';
+      document.getElementById("startRaceBtn").disabled = true;
+      return;
+    }
+
+    document.getElementById("startRaceBtn").disabled = false;
+
+    list.innerHTML = Object.entries(runners)
+      .map(
+        ([id, runner]) => `
+            <div class="runner-item">
+                <div class="runner-info">
+                    <strong>#${runner.number} ${runner.name} ${runner.surname}</strong>
+                    <br>
+                    <small>${runner.gender} | ${runner.year}${runner.category ? " | " + runner.category : ""}${runner.status ? " | " + runner.status : ""}${runner.club ? " | " + runner.club : ""}</small>
+                </div>
+                <button class="btn btn-danger btn-small" onclick="deleteRunner(${id})">Smazat</button>
+            </div>
+        `,
+      )
+      .join("");
+  }
+
+  async function deleteRunner(id) {
+    if (!confirm("Smazat závodníka?")) return;
+
+    try {
+      const response = await fetch(`/api/delete-runner/${id}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        loadRunners();
+      }
+    } catch (error) {
+      alert("Chyba: " + error);
+    }
+  }
+
+  document
+    .getElementById("runnerForm")
+    .addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const data = {
+        number: document.getElementById("number").value,
+        name: document.getElementById("firstName").value,
+        surname: document.getElementById("lastName").value,
+        gender: document.getElementById("gender").value,
+        year: document.getElementById("year").value,
+        club: document.getElementById("club").value,
+        email: document.getElementById("email").value,
+        phone: document.getElementById("phone").value,
+        manual_category: document.getElementById("manualCategory").value,
+      };
+
+      try {
+        const response = await fetch("/api/add-runner", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+        });
+
+        if (response.ok) {
+          document.getElementById("runnerForm").reset();
+          loadRunners();
+        }
+      } catch (error) {
+        alert("Chyba: " + error);
+      }
+    });
+
+  document
+    .getElementById("startRaceBtn")
+    .addEventListener("click", async () => {
+      try {
+        const response = await fetch("/api/start-timer", {
+          method: "POST",
+        });
+
+        if (response.ok) {
+          window.location.href = "/timer";
+        }
+      } catch (error) {
+        alert("Chyba: " + error);
+      }
+    });
+
+  document
+    .getElementById("previewImportBtn")
+    .addEventListener("click", async () => {
+      const csvText = document.getElementById("csvInput").value;
+      const response = await fetch("/api/import-runners", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ csv_text: csvText }),
+      });
+      const payload = await response.json();
+      const errorsBox = document.getElementById("importErrors");
+      const previewBox = document.getElementById("importPreview");
+      const confirmBtn = document.getElementById("confirmImportBtn");
+
+      errorsBox.innerHTML =
+        payload.errors && payload.errors.length
+          ? `<p>${payload.errors.join("<br>")}</p>`
+          : "";
+
+      importedRows = payload.preview || [];
+      if (importedRows.length) {
+        previewBox.innerHTML = `
+        <table class="results-table compact-table">
+          <thead>
+            <tr><th>Číslo</th><th>Jméno</th><th>Příjmení</th><th>Pohlaví</th><th>Ročník</th><th>Klub</th></tr>
+          </thead>
+          <tbody>
+            ${importedRows.map((row) => `<tr><td>${row.number}</td><td>${row.name}</td><td>${row.surname}</td><td>${row.gender}</td><td>${row.year}</td><td>${row.club || "-"}</td></tr>`).join("")}
+          </tbody>
+        </table>
+      `;
+        confirmBtn.disabled = false;
+      }
+    });
+
+  document
+    .getElementById("confirmImportBtn")
+    .addEventListener("click", async () => {
+      await fetch("/api/import-runners/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: importedRows }),
+      });
+      importedRows = [];
+      document.getElementById("importPreview").innerHTML = "";
+      document.getElementById("importErrors").innerHTML = "";
+      document.getElementById("confirmImportBtn").disabled = true;
+      document.getElementById("csvInput").value = "";
+      loadRunners();
+    });
+
+  // Načteme běžce při načtení stránky
+  loadRunners();
+</script>
+{% endblock %}
